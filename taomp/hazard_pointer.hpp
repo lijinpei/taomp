@@ -9,7 +9,7 @@
 #include <iostream>
 
 namespace taomp {
-template <typename AllocatorTy> struct HazardPointer {
+template <typename AllocatorTy> class HazardPointer : public AllocatorTy {
   using HpTy = void *;
   // it is impossible to have large number of threads or hps
   unsigned total_hp_num, thread_num;
@@ -20,7 +20,6 @@ template <typename AllocatorTy> struct HazardPointer {
   };
   ThreadLocal *tls;
   HpTy *tls_storage;
-  AllocatorTy &allocator;
   unsigned deallocate_threshold;
   unsigned storage_per_thread;
   unsigned defaultDeallocateThreshold() {
@@ -40,8 +39,8 @@ template <typename AllocatorTy> struct HazardPointer {
     for (; i1 < tl.size; ++i1) {
       HpTy hp = tl.start[i1];
       if (hp_set.find(hp) == hp_set.end()) {
-        allocator.deallocate(
-            reinterpret_cast<typename AllocatorTy::value_type *>(hp));
+        this->deallocate(
+            reinterpret_cast<typename AllocatorTy::value_type *>(hp), 1);
       } else {
         tl.start[i2++] = hp;
       }
@@ -52,10 +51,10 @@ template <typename AllocatorTy> struct HazardPointer {
 
 public:
   HazardPointer(unsigned thread_num, unsigned total_hp_num,
-                AllocatorTy &allocator, unsigned deallocate_threshold_ = 0)
+                unsigned deallocate_threshold_ = 0)
       : total_hp_num(total_hp_num), thread_num(thread_num),
         hps(new std::atomic<HpTy>[total_hp_num] {}),
-        tls(new ThreadLocal[thread_num]{}), allocator(allocator),
+        tls(new ThreadLocal[thread_num]{}),
         deallocate_threshold(deallocate_threshold_) {
     if (deallocate_threshold == 0) {
       deallocate_threshold = defaultDeallocateThreshold();
@@ -95,8 +94,8 @@ public:
   void forcedDeallocate(unsigned tid) {
     ThreadLocal &tl = tls[tid];
     for (unsigned i = 0; i < tl.size; ++i) {
-      allocator.deallocate(
-          reinterpret_cast<typename AllocatorTy::value_type *>(tl.start[i]));
+      this->deallocate(
+          reinterpret_cast<typename AllocatorTy::value_type *>(tl.start[i]), 1);
     }
     tl.size = 0;
   }
@@ -126,9 +125,9 @@ public:
   }
 
   template <typename T>
-  T *get(unsigned index, std::memory_order order = std::memory_order_relaxed) {
+  std::atomic<T *>& get(unsigned index, std::memory_order order = std::memory_order_relaxed) {
     assert(index < total_hp_num);
-    return reinterpret_cast<T *>(hps[index].load(order));
+    return *reinterpret_cast<std::atomic<T*>*>(&hps[index]);
   }
 
   template <typename T> std::atomic<T *> *getHp(unsigned index) {

@@ -28,13 +28,12 @@ class MyAllocator {
 public:
   using value_type = PointeeTy;
   PointeeTy *allocate() { return nullptr; }
-  void deallocate(PointeeTy *p) {
+  void deallocate(PointeeTy *p, int n) {
     *p = 1;
   }
 };
 
-MyAllocator allocator;
-taomp::HazardPointer HP(thread_num, thread_num *hp_per_thread, allocator);
+taomp::HazardPointer<MyAllocator> HP(thread_num, thread_num *hp_per_thread);
 
 void runTest(int start_position) {
   taomp::init_thread();
