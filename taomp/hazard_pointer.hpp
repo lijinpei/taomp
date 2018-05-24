@@ -1,12 +1,12 @@
 #pragma once
 
-#include "thread_management.hpp"
-#include "utils.hpp"
+#include "taomp/utils.hpp"
 
 #include "llvm/ADT/DenseSet.h"
 #include <atomic>
 #include <forward_list>
 #include <iostream>
+#include <string>
 
 namespace taomp {
 template <typename AllocatorTy> class HazardPointer : public AllocatorTy {
@@ -107,6 +107,9 @@ public:
     unsigned tid = get_thread_id();
     assert(tid < thread_num);
     ThreadLocal &tl = tls[tid];
+    if (tl.size >= deallocate_threshold) {
+      std::cerr << tid << '\n';
+    }
     assert(tl.size < deallocate_threshold);
     assert(tl.start + tl.size + 1 <=
            tls_storage + storage_per_thread * thread_num);
@@ -114,7 +117,9 @@ public:
     if (tl.size == deallocate_threshold) {
       scan(tl);
       assert(tl.size < deallocate_threshold);
+      std::string output_string = std::string("scan ") + std::to_string(tid) + " " + std::to_string(tl.size) + "\n";
     }
+    assert(tl.size < deallocate_threshold);
   }
 
   template <typename T>
@@ -124,10 +129,9 @@ public:
     hps[index].store(reinterpret_cast<HpTy>(hp_), order);
   }
 
-  template <typename T>
-  std::atomic<T *>& get(unsigned index, std::memory_order order = std::memory_order_relaxed) {
+  template <typename T> std::atomic<T *> &get(unsigned index) {
     assert(index < total_hp_num);
-    return *reinterpret_cast<std::atomic<T*>*>(&hps[index]);
+    return *reinterpret_cast<std::atomic<T *> *>(&hps[index]);
   }
 
   template <typename T> std::atomic<T *> *getHp(unsigned index) {

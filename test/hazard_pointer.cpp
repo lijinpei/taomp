@@ -1,3 +1,4 @@
+#include "test.hpp"
 #include "taomp/hazard_pointer.hpp"
 #include "taomp/thread_management.hpp"
 
@@ -9,16 +10,7 @@
 #include <thread>
 #include <vector>
 
-#define OUTPUT(x)                                                              \
-  {                                                                            \
-    pthread_spin_lock(&output_lock);                                           \
-    x;                                                                         \
-    pthread_spin_unlock(&output_lock);                                         \
-  }
-
-pthread_spinlock_t output_lock;
-pthread_barrier_t barrier;
-const int thread_num = 8;
+const unsigned thread_num = 8;
 const int hp_per_thread = 10;
 const int N1 = 10000;
 using PointeeTy = int;
@@ -86,12 +78,10 @@ void runTest(int start_position) {
 
 int* ps = new int[N1]{};
 int main() {
-  pthread_spin_init(&output_lock, PTHREAD_PROCESS_PRIVATE);
-  pthread_barrier_init(&barrier, nullptr, thread_num);
+  initTest();
   // Seed with a real random value, if available
   std::random_device r;
 
-  // Choose a random mean between 1 and 6
   std::default_random_engine e1(r());
   std::uniform_int_distribution<int> uniform_dist(0, N1 - 1);
   for (int i = 0; i < N1; ++i) {
@@ -109,8 +99,7 @@ int main() {
   for (auto &p : pointers) {
     delete p;
   }
-  pthread_spin_destroy(&output_lock);
-  pthread_barrier_destroy(&barrier);
   std::cerr << "main thread finish\n";
+  finishTest();
 }
 
